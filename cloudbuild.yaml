@@ -1,26 +1,27 @@
 steps:
-# Create a service account for the backend
+# Create a service account for the backend (idempotent)
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-  entrypoint: gcloud
+  entrypoint: bash
   args:
-  - 'iam'
-  - 'service-accounts'
-  - 'create'
-  - 'map-art-backend-sa'
-  - '--display-name=Map Art Backend Service Account'
-  - '--project=$PROJECT_ID'
-  - '--quiet'
+  - '-c'
+  - |
+    gcloud iam service-accounts describe map-art-backend-sa@$PROJECT_ID.iam.gserviceaccount.com --project=$PROJECT_ID 2>/dev/null || \
+    gcloud iam service-accounts create map-art-backend-sa \
+      --display-name="Map Art Backend Service Account" \
+      --project=$PROJECT_ID \
+      --quiet
 
-# Grant the service account access to the secret
+# Grant the service account access to the secret (idempotent)
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-  entrypoint: gcloud
+  entrypoint: bash
   args:
-  - 'secrets'
-  - 'add-iam-policy-binding'
-  - 'map-walker-api-key'
-  - '--member=serviceAccount:map-art-backend-sa@$PROJECT_ID.iam.gserviceaccount.com'
-  - '--role=roles/secretmanager.secretAccessor'
-  - '--project=$PROJECT_ID'
+  - '-c'
+  - |
+    gcloud secrets add-iam-policy-binding map-walker-api-key \
+      --member=serviceAccount:map-art-backend-sa@$PROJECT_ID.iam.gserviceaccount.com \
+      --role=roles/secretmanager.secretAccessor \
+      --project=$PROJECT_ID \
+      --condition=None || true
 
 # Build and push the backend image
 - name: 'gcr.io/cloud-builders/docker'
@@ -48,18 +49,32 @@ steps:
   - '--service-account=map-art-backend-sa@$PROJECT_ID.iam.gserviceaccount.com'
   - '--port=3001'
 
+# Get the backend URL
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: bash
+  args:
+  - '-c'
+  - |
+    gcloud run services describe map-art-backend \
+      --region=us-central1 \
+      --format='value(status.url)' \
+      --project=$PROJECT_ID > /workspace/backend_url.txt
+    echo "Backend URL: $(cat /workspace/backend_url.txt)"
+
 # Deploy the frontend to Cloud Run
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-  entrypoint: gcloud
+  entrypoint: bash
   args:
-  - 'run'
-  - 'deploy'
-  - 'map-art-frontend'
-  - '--image=us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/frontend:$SHORT_SHA'
-  - '--region=us-central1'
-  - '--platform=managed'
-  - '--allow-unauthenticated'
-  - '--set-env-vars=BACKEND_URL=map-art-backend:3001'
+  - '-c'
+  - |
+    BACKEND_URL=$(cat /workspace/backend_url.txt)
+    gcloud run deploy map-art-frontend \
+      --image=us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/frontend:$SHORT_SHA \
+      --region=us-central1 \
+      --platform=managed \
+      --allow-unauthenticated \
+      --port=80 \
+      --set-env-vars=BACKEND_URL=$${BACKEND_URL}
 
 images:
 - 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/backend:$SHORT_SHA'
