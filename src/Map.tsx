@@ -11,19 +11,6 @@ const center = {
   lng: -122.4194
 };
 
-import { GoogleMap, useJsApiLoader, DirectionsService, DirectionsRenderer } from '@react-google-maps/api';
-import { useState, useEffect } from 'react';
-
-const containerStyle = {
-  width: '100%',
-  height: '100vh'
-};
-
-const center = {
-  lat: 37.7749,
-  lng: -122.4194
-};
-
 interface MapProps {
   path: google.maps.LatLng[];
 }
