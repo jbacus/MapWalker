@@ -1,0 +1,66 @@
+steps:
+# Create a service account for the backend
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: gcloud
+  args:
+  - 'iam'
+  - 'service-accounts'
+  - 'create'
+  - 'map-art-backend-sa'
+  - '--display-name=Map Art Backend Service Account'
+  - '--project=$PROJECT_ID'
+  - '--quiet'
+
+# Grant the service account access to the secret
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: gcloud
+  args:
+  - 'secrets'
+  - 'add-iam-policy-binding'
+  - 'map-walker-api-key'
+  - '--member=serviceAccount:map-art-backend-sa@$PROJECT_ID.iam.gserviceaccount.com'
+  - '--role=roles/secretmanager.secretAccessor'
+  - '--project=$PROJECT_ID'
+
+# Build and push the backend image
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/backend:$SHORT_SHA', './backend']
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/backend:$SHORT_SHA']
+
+# Build and push the frontend image
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/frontend:$SHORT_SHA', '.']
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/frontend:$SHORT_SHA']
+
+# Deploy the backend to Cloud Run
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: gcloud
+  args:
+  - 'run'
+  - 'deploy'
+  - 'map-art-backend'
+  - '--image=us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/backend:$SHORT_SHA'
+  - '--region=us-central1'
+  - '--platform=managed'
+  - '--allow-unauthenticated'
+  - '--service-account=map-art-backend-sa@$PROJECT_ID.iam.gserviceaccount.com'
+  - '--port=3001'
+
+# Deploy the frontend to Cloud Run
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: gcloud
+  args:
+  - 'run'
+  - 'deploy'
+  - 'map-art-frontend'
+  - '--image=us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/frontend:$SHORT_SHA'
+  - '--region=us-central1'
+  - '--platform=managed'
+  - '--allow-unauthenticated'
+  - '--set-env-vars=BACKEND_URL=map-art-backend:3001'
+
+images:
+- 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/backend:$SHORT_SHA'
+- 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/frontend:$SHORT_SHA'
