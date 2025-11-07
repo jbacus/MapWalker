@@ -8,12 +8,19 @@ WORKDIR /usr/src/app
 # A wildcard is used to ensure both package.json AND package-lock.json are copied.
 # Copying this first prevents re-running npm install on every code change.
 COPY package*.json ./
+COPY tsconfig.json ./
 
-# Install production dependencies.
-RUN npm install --only=production
+# Install all dependencies (including dev dependencies for build)
+RUN npm install
 
 # Copy local code to the container image.
 COPY . .
 
+# Build TypeScript to JavaScript
+RUN npx tsc
+
+# Remove dev dependencies
+RUN npm prune --production
+
 # Run the web service on container startup.
-CMD ["npm", "start"]
+CMD ["node", "dist/index.js"]
