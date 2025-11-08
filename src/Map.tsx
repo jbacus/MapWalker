@@ -324,21 +324,21 @@ function MapComponent({
 }
 
 function Map({
-  paths,
-  selectedPathId,
-  onPathClick,
+  paths = [],
+  selectedPathId = null,
+  onPathClick = () => {},
   onMapClick,
-  placementMarkers,
-  previewShape,
+  placementMarkers = [],
+  previewShape = [],
   tooltip,
   center,
   onSearchSelect,
-  drawingMode,
-  drawingPath,
+  drawingMode = false,
+  drawingPath = [],
   onDrawStart,
   onDrawMove,
   onDrawEnd
-}: MapProps) {
+}: MapProps = {} as MapProps) {
   const [apiKey, setApiKey] = useState<string | null>(null);
 
   useEffect(() => {
