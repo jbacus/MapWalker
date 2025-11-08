@@ -12,7 +12,10 @@ export function generateShape(shape: string, center: google.maps.LatLngLiteral):
 function generateCircle(center: google.maps.LatLngLiteral): google.maps.LatLng[] {
   const points: google.maps.LatLng[] = [];
   const radius = 0.02; // Adjust as needed
-  const numPoints = 36;
+  // Google Maps Directions API allows max 25 waypoints (plus origin and destination)
+  // So we need max 27 total points (25 waypoints + 2 endpoints)
+  // Using 24 points + closing point = 25 total = 23 waypoints
+  const numPoints = 24;
 
   for (let i = 0; i < numPoints; i++) {
     const angle = (i / numPoints) * 2 * Math.PI;
