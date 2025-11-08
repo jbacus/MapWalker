@@ -9,8 +9,16 @@ const containerStyle = {
 // Define libraries outside component to prevent reload warnings
 const libraries: ("places")[] = ['places'];
 
+interface PathData {
+  id: string;
+  points: google.maps.LatLng[];
+  color: string;
+}
+
 interface MapProps {
-  path: google.maps.LatLng[];
+  paths: PathData[];
+  selectedPathId: string | null;
+  onPathClick: (pathId: string) => void;
   onMapClick?: (latLng: google.maps.LatLng) => void;
   placementMarkers?: google.maps.LatLng[];
   tooltip?: string;
@@ -24,7 +32,9 @@ interface MapProps {
 }
 
 interface MapComponentProps {
-  path: google.maps.LatLng[];
+  paths: PathData[];
+  selectedPathId: string | null;
+  onPathClick: (pathId: string) => void;
   apiKey: string;
   onMapClick?: (latLng: google.maps.LatLng) => void;
   placementMarkers?: google.maps.LatLng[];
@@ -39,7 +49,9 @@ interface MapComponentProps {
 }
 
 function MapComponent({
-  path,
+  paths,
+  selectedPathId,
+  onPathClick,
   apiKey,
   onMapClick,
   placementMarkers = [],
@@ -59,7 +71,7 @@ function MapComponent({
     libraries: libraries
   });
 
-  const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
+  const [directionsMap, setDirectionsMap] = useState<Map<string, google.maps.DirectionsResult>>(new Map());
   const [mapCenter, setMapCenter] = useState<google.maps.LatLngLiteral>(center || { lat: 37.7749, lng: -122.4194 });
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -77,30 +89,37 @@ function MapComponent({
     }
   }, [center, map]);
 
+  // Fetch directions for all paths
   useEffect(() => {
-    if (isLoaded && path.length > 1) {
+    if (isLoaded && paths.length > 0) {
       const directionsService = new google.maps.DirectionsService();
-      const waypoints = path.slice(1, path.length - 1).map(p => ({ location: p, stopover: true }));
+      const newDirectionsMap = new Map<string, google.maps.DirectionsResult>();
 
-      directionsService.route(
-        {
-          origin: path[0],
-          destination: path[path.length - 1],
-          waypoints: waypoints,
-          travelMode: google.maps.TravelMode.WALKING
-        },
-        (result, status) => {
-          if (status === google.maps.DirectionsStatus.OK) {
-            setDirections(result);
-          } else {
-            console.error(`error fetching directions ${result}`);
-          }
+      paths.forEach(pathData => {
+        if (pathData.points.length > 1) {
+          const waypoints = pathData.points.slice(1, pathData.points.length - 1).map(p => ({ location: p, stopover: true }));
+
+          directionsService.route(
+            {
+              origin: pathData.points[0],
+              destination: pathData.points[pathData.points.length - 1],
+              waypoints: waypoints,
+              travelMode: google.maps.TravelMode.WALKING
+            },
+            (result, status) => {
+              if (status === google.maps.DirectionsStatus.OK && result) {
+                setDirectionsMap(prev => new Map(prev).set(pathData.id, result));
+              } else {
+                console.error(`error fetching directions for path ${pathData.id}:`, result);
+              }
+            }
+          );
         }
-      );
+      });
     } else {
-      setDirections(null);
+      setDirectionsMap(new Map());
     }
-  }, [path, isLoaded]);
+  }, [paths, isLoaded]);
 
   const handleMapClick = (e: google.maps.MapMouseEvent) => {
     if (e.latLng && onMapClick && !drawingMode) {
@@ -210,7 +229,27 @@ function MapComponent({
           disableDoubleClickZoom: isDrawing
         }}
       >
-        {directions && <DirectionsRenderer directions={directions} />}
+        {paths.map(pathData => {
+          const directions = directionsMap.get(pathData.id);
+          if (!directions) return null;
+
+          return (
+            <DirectionsRenderer
+              key={pathData.id}
+              directions={directions}
+              options={{
+                polylineOptions: {
+                  strokeColor: pathData.color,
+                  strokeOpacity: selectedPathId === pathData.id ? 1.0 : 0.6,
+                  strokeWeight: selectedPathId === pathData.id ? 6 : 4
+                },
+                suppressMarkers: false,
+                preserveViewport: true
+              }}
+              onClick={() => onPathClick(pathData.id)}
+            />
+          );
+        })}
         {placementMarkers.map((marker, index) => (
           <Marker
             key={index}
@@ -246,7 +285,9 @@ function MapComponent({
 }
 
 function Map({
-  path,
+  paths,
+  selectedPathId,
+  onPathClick,
   onMapClick,
   placementMarkers,
   tooltip,
@@ -273,7 +314,9 @@ function Map({
   }
 
   return <MapComponent
-    path={path}
+    paths={paths}
+    selectedPathId={selectedPathId}
+    onPathClick={onPathClick}
     apiKey={apiKey}
     onMapClick={onMapClick}
     placementMarkers={placementMarkers}
