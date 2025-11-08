@@ -7,6 +7,10 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3001;
 
+console.log(`Starting backend server...`);
+console.log(`PORT environment variable: ${process.env.PORT}`);
+console.log(`Will listen on port: ${port}`);
+
 const secretManagerClient = new SecretManagerServiceClient();
 
 async function accessSecretVersion() {
@@ -17,6 +21,11 @@ async function accessSecretVersion() {
   const payload = version.payload?.data?.toString();
   return payload;
 }
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'healthy' });
+});
 
 app.get('/api/get-api-key', async (req, res) => {
   try {
@@ -32,6 +41,12 @@ app.get('/api/get-api-key', async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`Backend server listening at http://localhost:${port}`);
+const server = app.listen(port, '0.0.0.0', () => {
+  console.log(`Backend server listening on port ${port}`);
+  console.log(`Server is ready to accept connections`);
+});
+
+server.on('error', (error: any) => {
+  console.error('Failed to start server:', error);
+  process.exit(1);
 });

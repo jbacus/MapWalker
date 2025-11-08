@@ -25,15 +25,15 @@ steps:
 
 # Build and push the backend image
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/backend:$SHORT_SHA', './backend']
+  args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/backend:$BUILD_ID', './backend']
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/backend:$SHORT_SHA']
+  args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/backend:$BUILD_ID']
 
 # Build and push the frontend image
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/frontend:$SHORT_SHA', '.']
+  args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/frontend:$BUILD_ID', '.']
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/frontend:$SHORT_SHA']
+  args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/frontend:$BUILD_ID']
 
 # Deploy the backend to Cloud Run
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -42,7 +42,7 @@ steps:
   - 'run'
   - 'deploy'
   - 'map-art-backend'
-  - '--image=us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/backend:$SHORT_SHA'
+  - '--image=us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/backend:$BUILD_ID'
   - '--region=us-central1'
   - '--platform=managed'
   - '--allow-unauthenticated'
@@ -69,7 +69,7 @@ steps:
   - |
     BACKEND_URL=$(cat /workspace/backend_url.txt)
     gcloud run deploy map-art-frontend \
-      --image=us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/frontend:$SHORT_SHA \
+      --image=us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/frontend:$BUILD_ID \
       --region=us-central1 \
       --platform=managed \
       --allow-unauthenticated \
@@ -77,5 +77,5 @@ steps:
       --set-env-vars=BACKEND_URL=$${BACKEND_URL}
 
 images:
-- 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/backend:$SHORT_SHA'
-- 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/frontend:$SHORT_SHA'
+- 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/backend:$BUILD_ID'
+- 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/frontend:$BUILD_ID'
