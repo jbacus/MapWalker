@@ -6,6 +6,9 @@ const containerStyle = {
   height: '100vh'
 };
 
+// Define libraries outside component to prevent reload warnings
+const libraries: ("places")[] = ['places'];
+
 interface MapProps {
   path: google.maps.LatLng[];
   onMapClick?: (latLng: google.maps.LatLng) => void;
@@ -30,7 +33,7 @@ function MapComponent({ path, apiKey, onMapClick, placementMarkers = [], tooltip
     id: 'google-map-script',
     googleMapsApiKey: apiKey,
     preventGoogleFontsLoading: true,
-    libraries: ['places']
+    libraries: libraries
   });
 
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
