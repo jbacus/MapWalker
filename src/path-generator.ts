@@ -116,3 +116,68 @@ export function generateCircleFromThreePoints(
 
   return points;
 }
+
+// Resample a path to have exactly targetPoints points
+// Uses uniform spacing along the path
+export function resamplePath(
+  originalPath: google.maps.LatLng[],
+  targetPoints: number
+): google.maps.LatLng[] {
+  if (originalPath.length <= targetPoints) {
+    return originalPath;
+  }
+
+  // Calculate cumulative distances
+  const distances: number[] = [0];
+  let totalDistance = 0;
+
+  for (let i = 1; i < originalPath.length; i++) {
+    const dist = calculateDistance(originalPath[i - 1], originalPath[i]);
+    totalDistance += dist;
+    distances.push(totalDistance);
+  }
+
+  // Calculate target spacing
+  const targetSpacing = totalDistance / (targetPoints - 1);
+
+  // Resample points at uniform intervals
+  const resampledPath: google.maps.LatLng[] = [originalPath[0]];
+
+  let currentDistance = targetSpacing;
+  let pathIndex = 1;
+
+  while (resampledPath.length < targetPoints - 1 && pathIndex < originalPath.length) {
+    const segmentStart = distances[pathIndex - 1];
+    const segmentEnd = distances[pathIndex];
+
+    if (currentDistance >= segmentStart && currentDistance <= segmentEnd) {
+      // Interpolate point along this segment
+      const segmentLength = segmentEnd - segmentStart;
+      const t = (currentDistance - segmentStart) / segmentLength;
+
+      const lat = originalPath[pathIndex - 1].lat() + t * (originalPath[pathIndex].lat() - originalPath[pathIndex - 1].lat());
+      const lng = originalPath[pathIndex - 1].lng() + t * (originalPath[pathIndex].lng() - originalPath[pathIndex - 1].lng());
+
+      resampledPath.push(new google.maps.LatLng(lat, lng));
+      currentDistance += targetSpacing;
+    } else {
+      pathIndex++;
+    }
+  }
+
+  // Add the last point
+  resampledPath.push(originalPath[originalPath.length - 1]);
+
+  return resampledPath;
+}
+
+// Calculate distance between two LatLng points (simple Euclidean distance)
+// For more accuracy, could use Haversine formula
+function calculateDistance(point1: google.maps.LatLng, point2: google.maps.LatLng): number {
+  const lat1 = point1.lat();
+  const lng1 = point1.lng();
+  const lat2 = point2.lat();
+  const lng2 = point2.lng();
+
+  return Math.sqrt((lat2 - lat1) ** 2 + (lng2 - lng1) ** 2);
+}

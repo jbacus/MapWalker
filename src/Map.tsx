@@ -1,4 +1,4 @@
-import { GoogleMap, useJsApiLoader, DirectionsRenderer, Marker, StandaloneSearchBox } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, DirectionsRenderer, Marker, StandaloneSearchBox, Polyline } from '@react-google-maps/api';
 import { useState, useEffect, useRef } from 'react';
 
 const containerStyle = {
@@ -16,6 +16,11 @@ interface MapProps {
   tooltip?: string;
   center?: google.maps.LatLngLiteral;
   onSearchSelect?: (place: google.maps.places.PlaceResult) => void;
+  drawingMode?: boolean;
+  drawingPath?: google.maps.LatLng[];
+  onDrawStart?: (latLng: google.maps.LatLng) => void;
+  onDrawMove?: (latLng: google.maps.LatLng) => void;
+  onDrawEnd?: () => void;
 }
 
 interface MapComponentProps {
@@ -26,9 +31,27 @@ interface MapComponentProps {
   tooltip?: string;
   center?: google.maps.LatLngLiteral;
   onSearchSelect?: (place: google.maps.places.PlaceResult) => void;
+  drawingMode?: boolean;
+  drawingPath?: google.maps.LatLng[];
+  onDrawStart?: (latLng: google.maps.LatLng) => void;
+  onDrawMove?: (latLng: google.maps.LatLng) => void;
+  onDrawEnd?: () => void;
 }
 
-function MapComponent({ path, apiKey, onMapClick, placementMarkers = [], tooltip = '', center, onSearchSelect }: MapComponentProps) {
+function MapComponent({
+  path,
+  apiKey,
+  onMapClick,
+  placementMarkers = [],
+  tooltip = '',
+  center,
+  onSearchSelect,
+  drawingMode = false,
+  drawingPath = [],
+  onDrawStart,
+  onDrawMove,
+  onDrawEnd
+}: MapComponentProps) {
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: apiKey,
@@ -39,6 +62,7 @@ function MapComponent({ path, apiKey, onMapClick, placementMarkers = [], tooltip
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [mapCenter, setMapCenter] = useState<google.maps.LatLngLiteral>(center || { lat: 37.7749, lng: -122.4194 });
   const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
   const searchBoxRef = useRef<google.maps.places.SearchBox | null>(null);
 
   // Update map center when center prop changes
@@ -78,8 +102,28 @@ function MapComponent({ path, apiKey, onMapClick, placementMarkers = [], tooltip
   }, [path, isLoaded]);
 
   const handleMapClick = (e: google.maps.MapMouseEvent) => {
-    if (e.latLng && onMapClick) {
+    if (e.latLng && onMapClick && !drawingMode) {
       onMapClick(e.latLng);
+    }
+  };
+
+  const handleMouseDown = (e: google.maps.MapMouseEvent) => {
+    if (e.latLng && drawingMode && onDrawStart) {
+      setIsDrawing(true);
+      onDrawStart(e.latLng);
+    }
+  };
+
+  const handleMouseMove = (e: google.maps.MapMouseEvent) => {
+    if (e.latLng && drawingMode && isDrawing && onDrawMove) {
+      onDrawMove(e.latLng);
+    }
+  };
+
+  const handleMouseUp = () => {
+    if (drawingMode && isDrawing && onDrawEnd) {
+      setIsDrawing(false);
+      onDrawEnd();
     }
   };
 
@@ -128,11 +172,18 @@ function MapComponent({ path, apiKey, onMapClick, placementMarkers = [], tooltip
         center={mapCenter}
         zoom={12}
         onClick={handleMapClick}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
         onLoad={setMap}
         options={{
           streetViewControl: false,
           mapTypeControl: false,
-          fullscreenControl: false
+          fullscreenControl: false,
+          draggable: !isDrawing,
+          zoomControl: !isDrawing,
+          scrollwheel: !isDrawing,
+          disableDoubleClickZoom: isDrawing
         }}
       >
         {directions && <DirectionsRenderer directions={directions} />}
@@ -154,12 +205,35 @@ function MapComponent({ path, apiKey, onMapClick, placementMarkers = [], tooltip
             }}
           />
         ))}
+        {drawingPath.length > 0 && (
+          <Polyline
+            path={drawingPath}
+            options={{
+              strokeColor: '#FF0000',
+              strokeOpacity: 0.8,
+              strokeWeight: 3,
+              geodesic: true
+            }}
+          />
+        )}
       </GoogleMap>
     </>
   ) : <></>
 }
 
-function Map({ path, onMapClick, placementMarkers, tooltip, center, onSearchSelect }: MapProps) {
+function Map({
+  path,
+  onMapClick,
+  placementMarkers,
+  tooltip,
+  center,
+  onSearchSelect,
+  drawingMode,
+  drawingPath,
+  onDrawStart,
+  onDrawMove,
+  onDrawEnd
+}: MapProps) {
   const [apiKey, setApiKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -182,6 +256,11 @@ function Map({ path, onMapClick, placementMarkers, tooltip, center, onSearchSele
     tooltip={tooltip}
     center={center}
     onSearchSelect={onSearchSelect}
+    drawingMode={drawingMode}
+    drawingPath={drawingPath}
+    onDrawStart={onDrawStart}
+    onDrawMove={onDrawMove}
+    onDrawEnd={onDrawEnd}
   />;
 }
 

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Map from './Map';
-import { Button, ButtonGroup, Container, Form } from 'react-bootstrap';
-import { generateCircleFromThreePoints, generateSquareFromTwoPoints } from './path-generator';
+import { Button, ButtonGroup, Container } from 'react-bootstrap';
+import { generateCircleFromThreePoints, generateSquareFromTwoPoints, resamplePath } from './path-generator';
 
 type PlacementState = {
   shape: 'circle' | 'square';
@@ -9,15 +9,22 @@ type PlacementState = {
   tooltipText: string;
 };
 
+type DrawingState = {
+  isDrawing: boolean;
+  points: google.maps.LatLng[];
+};
+
 function App() {
   const [path, setPath] = useState<google.maps.LatLng[]>([]);
-  const [selectedShape, setSelectedShape] = useState<'circle' | 'square' | null>(null);
+  const [selectedMode, setSelectedMode] = useState<'circle' | 'square' | 'draw' | null>(null);
   const [placementState, setPlacementState] = useState<PlacementState | null>(null);
+  const [drawingState, setDrawingState] = useState<DrawingState | null>(null);
   const [mapCenter, setMapCenter] = useState<google.maps.LatLngLiteral>({ lat: 37.7749, lng: -122.4194 });
 
   const handleShapeSelect = (shape: 'circle' | 'square') => {
-    setSelectedShape(shape);
+    setSelectedMode(shape);
     setPath([]);
+    setDrawingState(null);
     if (shape === 'circle') {
       setPlacementState({
         shape: 'circle',
@@ -31,6 +38,16 @@ function App() {
         tooltipText: 'Click to place start/end point (first corner of square)'
       });
     }
+  };
+
+  const handleDrawSelect = () => {
+    setSelectedMode('draw');
+    setPath([]);
+    setPlacementState(null);
+    setDrawingState({
+      isDrawing: false,
+      points: []
+    });
   };
 
   const handleMapClick = (latLng: google.maps.LatLng) => {
@@ -77,10 +94,41 @@ function App() {
     }
   };
 
+  const handleDrawStart = (latLng: google.maps.LatLng) => {
+    if (drawingState) {
+      setDrawingState({
+        isDrawing: true,
+        points: [latLng]
+      });
+    }
+  };
+
+  const handleDrawMove = (latLng: google.maps.LatLng) => {
+    if (drawingState?.isDrawing) {
+      setDrawingState({
+        ...drawingState,
+        points: [...drawingState.points, latLng]
+      });
+    }
+  };
+
+  const handleDrawEnd = () => {
+    if (drawingState?.isDrawing && drawingState.points.length > 1) {
+      // Resample to maximum allowed points (27 total = 25 waypoints + origin + destination)
+      const resampledPoints = resamplePath(drawingState.points, 27);
+      setPath(resampledPoints);
+      setDrawingState({
+        isDrawing: false,
+        points: []
+      });
+    }
+  };
+
   const handleReset = () => {
     setPath([]);
     setPlacementState(null);
-    setSelectedShape(null);
+    setDrawingState(null);
+    setSelectedMode(null);
   };
 
   const handleSearchSelect = (place: google.maps.places.PlaceResult) => {
@@ -92,15 +140,33 @@ function App() {
     }
   };
 
+  const getTooltipText = () => {
+    if (placementState) {
+      return placementState.tooltipText;
+    }
+    if (drawingState && !drawingState.isDrawing) {
+      return 'Click and drag to draw your path';
+    }
+    if (drawingState?.isDrawing) {
+      return 'Drawing... release to finish';
+    }
+    return '';
+  };
+
   return (
     <div>
       <Map
         path={path}
         onMapClick={handleMapClick}
         placementMarkers={placementState?.points || []}
-        tooltip={placementState?.tooltipText || ''}
+        tooltip={getTooltipText()}
         center={mapCenter}
         onSearchSelect={handleSearchSelect}
+        drawingMode={drawingState !== null}
+        drawingPath={drawingState?.points || []}
+        onDrawStart={handleDrawStart}
+        onDrawMove={handleDrawMove}
+        onDrawEnd={handleDrawEnd}
       />
       <Container className="position-absolute top-0 start-50 translate-middle-x mt-3" style={{ zIndex: 1000 }}>
         <div className="bg-white rounded p-3 shadow">
@@ -108,27 +174,34 @@ function App() {
           <div className="d-flex justify-content-center mb-3">
             <ButtonGroup>
               <Button
-                variant={selectedShape === 'circle' ? 'primary' : 'secondary'}
+                variant={selectedMode === 'circle' ? 'primary' : 'secondary'}
                 onClick={() => handleShapeSelect('circle')}
-                disabled={placementState !== null}
+                disabled={placementState !== null || drawingState !== null}
               >
                 Circle
               </Button>
               <Button
-                variant={selectedShape === 'square' ? 'primary' : 'secondary'}
+                variant={selectedMode === 'square' ? 'primary' : 'secondary'}
                 onClick={() => handleShapeSelect('square')}
-                disabled={placementState !== null}
+                disabled={placementState !== null || drawingState !== null}
               >
                 Square
               </Button>
+              <Button
+                variant={selectedMode === 'draw' ? 'primary' : 'secondary'}
+                onClick={handleDrawSelect}
+                disabled={placementState !== null || drawingState !== null}
+              >
+                Draw
+              </Button>
             </ButtonGroup>
           </div>
-          {placementState && (
+          {(placementState || drawingState) && (
             <div className="alert alert-info mb-3 text-center">
-              <small>{placementState.tooltipText}</small>
+              <small>{getTooltipText()}</small>
             </div>
           )}
-          {(path.length > 0 || placementState) && (
+          {(path.length > 0 || placementState || drawingState) && (
             <div className="d-flex justify-content-center">
               <Button variant="danger" onClick={handleReset}>
                 Reset
