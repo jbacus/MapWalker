@@ -31,5 +31,5 @@ COPY nginx.conf /etc/nginx/nginx.conf.template
 # Expose port 8080 (Cloud Run default)
 EXPOSE 8080
 
-# Start Nginx
-CMD ["/bin/sh", "-c", "envsubst '${BACKEND_URL} ${PORT}' < /etc/nginx/nginx.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+# Start Nginx with runtime config injection
+CMD ["/bin/sh", "-c", "echo \"window.ENV = { BACKEND_URL: '${BACKEND_URL}' };\" > /usr/share/nginx/html/env-config.js && envsubst '${PORT}' < /etc/nginx/nginx.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]

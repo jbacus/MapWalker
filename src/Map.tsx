@@ -19,9 +19,11 @@ function Map({ path }: MapProps) {
   const [apiKey, setApiKey] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/get-api-key')
+    const backendUrl = (window as any).ENV?.BACKEND_URL || '';
+    fetch(`${backendUrl}/api/get-api-key`)
       .then(res => res.json())
-      .then(data => setApiKey(data.apiKey));
+      .then(data => setApiKey(data.apiKey))
+      .catch(err => console.error('Failed to fetch API key:', err));
   }, []);
 
   const { isLoaded } = useJsApiLoader({
