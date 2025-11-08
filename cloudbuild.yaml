@@ -73,7 +73,6 @@ steps:
       --region=us-central1 \
       --platform=managed \
       --allow-unauthenticated \
-      --port=80 \
       --set-env-vars=BACKEND_URL=$${BACKEND_URL}
 
 images:

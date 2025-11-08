@@ -28,8 +28,8 @@ COPY --from=build /usr/src/app/dist /usr/share/nginx/html
 # Copy the nginx config template
 COPY nginx.conf /etc/nginx/nginx.conf.template
 
-# Expose port 80
-EXPOSE 80
+# Expose port 8080 (Cloud Run default)
+EXPOSE 8080
 
 # Start Nginx
-CMD ["/bin/sh", "-c", "envsubst '${BACKEND_URL}' < /etc/nginx/nginx.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+CMD ["/bin/sh", "-c", "envsubst '${BACKEND_URL} ${PORT}' < /etc/nginx/nginx.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
