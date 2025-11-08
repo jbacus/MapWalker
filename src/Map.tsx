@@ -1,33 +1,53 @@
-import { GoogleMap, useJsApiLoader, DirectionsService, DirectionsRenderer } from '@react-google-maps/api';
-import { useState, useEffect } from 'react';
+import { GoogleMap, useJsApiLoader, DirectionsRenderer, Marker, StandaloneSearchBox } from '@react-google-maps/api';
+import { useState, useEffect, useRef } from 'react';
 
 const containerStyle = {
   width: '100%',
   height: '100vh'
 };
 
-const center = {
-  lat: 37.7749,
-  lng: -122.4194
-};
-
 interface MapProps {
   path: google.maps.LatLng[];
+  onMapClick?: (latLng: google.maps.LatLng) => void;
+  placementMarkers?: google.maps.LatLng[];
+  tooltip?: string;
+  center?: google.maps.LatLngLiteral;
+  onSearchSelect?: (place: google.maps.places.PlaceResult) => void;
 }
 
 interface MapComponentProps {
   path: google.maps.LatLng[];
   apiKey: string;
+  onMapClick?: (latLng: google.maps.LatLng) => void;
+  placementMarkers?: google.maps.LatLng[];
+  tooltip?: string;
+  center?: google.maps.LatLngLiteral;
+  onSearchSelect?: (place: google.maps.places.PlaceResult) => void;
 }
 
-function MapComponent({ path, apiKey }: MapComponentProps) {
+function MapComponent({ path, apiKey, onMapClick, placementMarkers = [], tooltip = '', center, onSearchSelect }: MapComponentProps) {
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: apiKey,
     preventGoogleFontsLoading: true,
+    libraries: ['places']
   });
 
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
+  const [mapCenter, setMapCenter] = useState<google.maps.LatLngLiteral>(center || { lat: 37.7749, lng: -122.4194 });
+  const [map, setMap] = useState<google.maps.Map | null>(null);
+  const searchBoxRef = useRef<google.maps.places.SearchBox | null>(null);
+
+  // Update map center when center prop changes
+  useEffect(() => {
+    if (center) {
+      setMapCenter(center);
+      if (map) {
+        map.panTo(center);
+        map.setZoom(13);
+      }
+    }
+  }, [center, map]);
 
   useEffect(() => {
     if (isLoaded && path.length > 1) {
@@ -49,21 +69,94 @@ function MapComponent({ path, apiKey }: MapComponentProps) {
           }
         }
       );
+    } else {
+      setDirections(null);
     }
   }, [path, isLoaded]);
 
+  const handleMapClick = (e: google.maps.MapMouseEvent) => {
+    if (e.latLng && onMapClick) {
+      onMapClick(e.latLng);
+    }
+  };
+
+  const handleSearchBoxLoad = (ref: google.maps.places.SearchBox) => {
+    searchBoxRef.current = ref;
+  };
+
+  const handlePlacesChanged = () => {
+    if (searchBoxRef.current && onSearchSelect) {
+      const places = searchBoxRef.current.getPlaces();
+      if (places && places.length > 0) {
+        onSearchSelect(places[0]);
+      }
+    }
+  };
+
+  const getMarkerLabel = (index: number, total: number): string => {
+    if (total === 1) return '1';
+    if (total === 2) return (index + 1).toString();
+    if (total === 3) return (index + 1).toString();
+    return (index + 1).toString();
+  };
+
   return isLoaded ? (
+    <>
+      <div className="position-absolute" style={{ top: '120px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000, width: '400px' }}>
+        <StandaloneSearchBox
+          onLoad={handleSearchBoxLoad}
+          onPlacesChanged={handlePlacesChanged}
+        >
+          <input
+            type="text"
+            placeholder="Search for a location..."
+            className="form-control shadow"
+            style={{
+              width: '100%',
+              height: '40px',
+              padding: '0 12px',
+              fontSize: '14px'
+            }}
+          />
+        </StandaloneSearchBox>
+      </div>
       <GoogleMap
         mapContainerStyle={containerStyle}
-        center={center}
+        center={mapCenter}
         zoom={12}
+        onClick={handleMapClick}
+        onLoad={setMap}
+        options={{
+          streetViewControl: false,
+          mapTypeControl: false,
+          fullscreenControl: false
+        }}
       >
         {directions && <DirectionsRenderer directions={directions} />}
+        {placementMarkers.map((marker, index) => (
+          <Marker
+            key={index}
+            position={marker}
+            label={{
+              text: getMarkerLabel(index, placementMarkers.length),
+              color: 'white'
+            }}
+            icon={{
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: 10,
+              fillColor: '#4285F4',
+              fillOpacity: 1,
+              strokeColor: 'white',
+              strokeWeight: 2
+            }}
+          />
+        ))}
       </GoogleMap>
+    </>
   ) : <></>
 }
 
-function Map({ path }: MapProps) {
+function Map({ path, onMapClick, placementMarkers, tooltip, center, onSearchSelect }: MapProps) {
   const [apiKey, setApiKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -78,7 +171,15 @@ function Map({ path }: MapProps) {
     return <div>Loading...</div>;
   }
 
-  return <MapComponent path={path} apiKey={apiKey} />;
+  return <MapComponent
+    path={path}
+    apiKey={apiKey}
+    onMapClick={onMapClick}
+    placementMarkers={placementMarkers}
+    tooltip={tooltip}
+    center={center}
+    onSearchSelect={onSearchSelect}
+  />;
 }
 
 export default Map;
