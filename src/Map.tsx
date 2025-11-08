@@ -64,6 +64,7 @@ function MapComponent({
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const searchBoxRef = useRef<google.maps.places.SearchBox | null>(null);
+  const isDrawingRef = useRef(false);
 
   // Update map center when center prop changes
   useEffect(() => {
@@ -110,22 +111,45 @@ function MapComponent({
   const handleMouseDown = (e: google.maps.MapMouseEvent) => {
     if (e.latLng && drawingMode && onDrawStart) {
       setIsDrawing(true);
+      isDrawingRef.current = true;
       onDrawStart(e.latLng);
     }
   };
 
   const handleMouseMove = (e: google.maps.MapMouseEvent) => {
-    if (e.latLng && drawingMode && isDrawing && onDrawMove) {
+    if (e.latLng && drawingMode && isDrawingRef.current && onDrawMove) {
       onDrawMove(e.latLng);
     }
   };
 
   const handleMouseUp = () => {
-    if (drawingMode && isDrawing && onDrawEnd) {
+    if (drawingMode && isDrawingRef.current && onDrawEnd) {
       setIsDrawing(false);
+      isDrawingRef.current = false;
       onDrawEnd();
     }
   };
+
+  // Add global mouse up listener when drawing mode is active
+  useEffect(() => {
+    if (drawingMode) {
+      const handleGlobalMouseUp = () => {
+        if (isDrawingRef.current && onDrawEnd) {
+          setIsDrawing(false);
+          isDrawingRef.current = false;
+          onDrawEnd();
+        }
+      };
+
+      window.addEventListener('mouseup', handleGlobalMouseUp);
+      window.addEventListener('touchend', handleGlobalMouseUp);
+
+      return () => {
+        window.removeEventListener('mouseup', handleGlobalMouseUp);
+        window.removeEventListener('touchend', handleGlobalMouseUp);
+      };
+    }
+  }, [drawingMode, onDrawEnd]);
 
   const handleSearchBoxLoad = (ref: google.maps.places.SearchBox) => {
     searchBoxRef.current = ref;
