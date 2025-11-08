@@ -12,6 +12,7 @@ const libraries: ("places")[] = ['places'];
 interface PathData {
   id: string;
   points: google.maps.LatLng[];
+  idealShape?: google.maps.LatLng[];
   color: string;
 }
 
@@ -21,6 +22,7 @@ interface MapProps {
   onPathClick: (pathId: string) => void;
   onMapClick?: (latLng: google.maps.LatLng) => void;
   placementMarkers?: google.maps.LatLng[];
+  previewShape?: google.maps.LatLng[];
   tooltip?: string;
   center?: google.maps.LatLngLiteral;
   onSearchSelect?: (place: google.maps.places.PlaceResult) => void;
@@ -38,6 +40,7 @@ interface MapComponentProps {
   apiKey: string;
   onMapClick?: (latLng: google.maps.LatLng) => void;
   placementMarkers?: google.maps.LatLng[];
+  previewShape?: google.maps.LatLng[];
   tooltip?: string;
   center?: google.maps.LatLngLiteral;
   onSearchSelect?: (place: google.maps.places.PlaceResult) => void;
@@ -55,6 +58,7 @@ function MapComponent({
   apiKey,
   onMapClick,
   placementMarkers = [],
+  previewShape = [],
   tooltip = '',
   center,
   onSearchSelect,
@@ -229,6 +233,27 @@ function MapComponent({
           disableDoubleClickZoom: isDrawing
         }}
       >
+        {/* Render ideal shapes as polylines */}
+        {paths.map(pathData => {
+          if (!pathData.idealShape || pathData.idealShape.length === 0) return null;
+
+          return (
+            <Polyline
+              key={`ideal-${pathData.id}`}
+              path={pathData.idealShape}
+              options={{
+                strokeColor: pathData.color,
+                strokeOpacity: selectedPathId === pathData.id ? 0.8 : 0.4,
+                strokeWeight: selectedPathId === pathData.id ? 4 : 2,
+                geodesic: true,
+                clickable: true
+              }}
+              onClick={() => onPathClick(pathData.id)}
+            />
+          );
+        })}
+
+        {/* Render navigable paths */}
         {paths.map(pathData => {
           const directions = directionsMap.get(pathData.id);
           if (!directions) return null;
@@ -268,6 +293,20 @@ function MapComponent({
             }}
           />
         ))}
+        {/* Preview shape during placement (circle/square) */}
+        {previewShape.length > 0 && (
+          <Polyline
+            path={previewShape}
+            options={{
+              strokeColor: '#4285F4',
+              strokeOpacity: 0.6,
+              strokeWeight: 3,
+              geodesic: true
+            }}
+          />
+        )}
+
+        {/* Free-draw path preview */}
         {drawingPath.length > 0 && (
           <Polyline
             path={drawingPath}
@@ -290,6 +329,7 @@ function Map({
   onPathClick,
   onMapClick,
   placementMarkers,
+  previewShape,
   tooltip,
   center,
   onSearchSelect,
@@ -320,6 +360,7 @@ function Map({
     apiKey={apiKey}
     onMapClick={onMapClick}
     placementMarkers={placementMarkers}
+    previewShape={previewShape}
     tooltip={tooltip}
     center={center}
     onSearchSelect={onSearchSelect}

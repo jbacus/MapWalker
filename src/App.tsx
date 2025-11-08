@@ -17,6 +17,7 @@ type DrawingState = {
 type PathData = {
   id: string;
   points: google.maps.LatLng[];
+  idealShape?: google.maps.LatLng[]; // Original geometric shape before street snapping
   color: string;
 };
 
@@ -111,10 +112,11 @@ function App() {
     fetchRoutes();
   }, [selectedPathId, paths]);
 
-  const addPath = (points: google.maps.LatLng[]) => {
+  const addPath = (points: google.maps.LatLng[], idealShape?: google.maps.LatLng[]) => {
     const newPath: PathData = {
       id: generatePathId(),
       points,
+      idealShape,
       color: getPathColor(paths.length)
     };
     setPaths([...paths, newPath]);
@@ -163,8 +165,8 @@ function App() {
           tooltipText: 'Click to place second corner (defines first edge and size)'
         });
       } else if (newPoints.length === 2) {
-        const generatedPath = generateSquareFromTwoPoints(newPoints[0], newPoints[1]);
-        addPath(generatedPath);
+        const idealShape = generateSquareFromTwoPoints(newPoints[0], newPoints[1]);
+        addPath(idealShape, idealShape); // Use ideal shape for both navigation and display
         setPlacementState(null);
         setSelectedMode(null);
       }
@@ -182,9 +184,9 @@ function App() {
           tooltipText: 'Click to place third point on circle circumference'
         });
       } else if (newPoints.length === 3) {
-        const generatedPath = generateCircleFromThreePoints(newPoints[0], newPoints[1], newPoints[2]);
-        if (generatedPath.length > 0) {
-          addPath(generatedPath);
+        const idealShape = generateCircleFromThreePoints(newPoints[0], newPoints[1], newPoints[2]);
+        if (idealShape.length > 0) {
+          addPath(idealShape, idealShape); // Use ideal shape for both navigation and display
         } else {
           alert('Could not create circle from these points. Please try again with points that are not collinear.');
         }
@@ -304,6 +306,20 @@ function App() {
     return route?.directions || null;
   };
 
+  const getPreviewShape = (): google.maps.LatLng[] => {
+    if (!placementState) return [];
+
+    if (placementState.shape === 'square' && placementState.points.length === 2) {
+      // Generate preview square from two points
+      return generateSquareFromTwoPoints(placementState.points[0], placementState.points[1]);
+    } else if (placementState.shape === 'circle' && placementState.points.length === 3) {
+      // Generate preview circle from three points
+      return generateCircleFromThreePoints(placementState.points[0], placementState.points[1], placementState.points[2]);
+    }
+
+    return [];
+  };
+
   return (
     <div>
       <Map
@@ -312,6 +328,7 @@ function App() {
         onPathClick={handleSelectPath}
         onMapClick={handleMapClick}
         placementMarkers={placementState?.points || []}
+        previewShape={getPreviewShape()}
         center={mapCenter}
         onSearchSelect={handleSearchSelect}
         drawingMode={drawingState !== null}
