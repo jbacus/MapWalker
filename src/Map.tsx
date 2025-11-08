@@ -75,7 +75,7 @@ function MapComponent({
     libraries: libraries
   });
 
-  const [directionsMap, setDirectionsMap] = useState<Map<string, google.maps.DirectionsResult>>(new Map());
+  const [directionsMap, setDirectionsMap] = useState<globalThis.Map<string, google.maps.DirectionsResult>>(new globalThis.Map());
   const [mapCenter, setMapCenter] = useState<google.maps.LatLngLiteral>(center || { lat: 37.7749, lng: -122.4194 });
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -97,7 +97,7 @@ function MapComponent({
   useEffect(() => {
     if (isLoaded && paths.length > 0) {
       const directionsService = new google.maps.DirectionsService();
-      const newDirectionsMap = new Map<string, google.maps.DirectionsResult>();
+      const newDirectionsMap = new globalThis.Map<string, google.maps.DirectionsResult>();
 
       paths.forEach(pathData => {
         if (pathData.points.length > 1) {
@@ -112,7 +112,7 @@ function MapComponent({
             },
             (result, status) => {
               if (status === google.maps.DirectionsStatus.OK && result) {
-                setDirectionsMap(prev => new Map(prev).set(pathData.id, result));
+                setDirectionsMap(prev => new globalThis.Map(prev).set(pathData.id, result));
               } else {
                 console.error(`error fetching directions for path ${pathData.id}:`, result);
               }
@@ -121,7 +121,7 @@ function MapComponent({
         }
       });
     } else {
-      setDirectionsMap(new Map());
+      setDirectionsMap(new globalThis.Map());
     }
   }, [paths, isLoaded]);
 
