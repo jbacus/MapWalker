@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Map from './Map';
 import { Button, ButtonGroup, Container } from 'react-bootstrap';
 import { generateCircleFromThreePoints, generateSquareFromTwoPoints, resamplePath } from './path-generator';
@@ -20,6 +20,11 @@ type PathData = {
   color: string;
 };
 
+type RouteInfo = {
+  mode: google.maps.TravelMode;
+  directions: google.maps.DirectionsResult | null;
+};
+
 function App() {
   const [paths, setPaths] = useState<PathData[]>([]);
   const [selectedPathId, setSelectedPathId] = useState<string | null>(null);
@@ -27,6 +32,9 @@ function App() {
   const [placementState, setPlacementState] = useState<PlacementState | null>(null);
   const [drawingState, setDrawingState] = useState<DrawingState | null>(null);
   const [mapCenter, setMapCenter] = useState<google.maps.LatLngLiteral>({ lat: 37.7749, lng: -122.4194 });
+  const [routeAlternatives, setRouteAlternatives] = useState<RouteInfo[]>([]);
+  const [selectedTravelMode, setSelectedTravelMode] = useState<google.maps.TravelMode | null>(null);
+  const [showNavigation, setShowNavigation] = useState(false);
 
   const generatePathId = () => `path-${Date.now()}-${Math.random()}`;
 
@@ -34,6 +42,74 @@ function App() {
     const colors = ['#4285F4', '#EA4335', '#FBBC04', '#34A853', '#FF6D00', '#46BDC6'];
     return colors[index % colors.length];
   };
+
+  // Fetch alternative routes when a path is selected
+  useEffect(() => {
+    if (!selectedPathId || !window.google) {
+      setRouteAlternatives([]);
+      setShowNavigation(false);
+      return;
+    }
+
+    const selectedPath = paths.find(p => p.id === selectedPathId);
+    if (!selectedPath || selectedPath.points.length < 2) {
+      setRouteAlternatives([]);
+      setShowNavigation(false);
+      return;
+    }
+
+    const directionsService = new google.maps.DirectionsService();
+    const travelModes = [
+      google.maps.TravelMode.WALKING,
+      google.maps.TravelMode.TRANSIT,
+      google.maps.TravelMode.BICYCLING,
+      google.maps.TravelMode.DRIVING
+    ];
+
+    const fetchRoutes = async () => {
+      const routes: RouteInfo[] = [];
+
+      for (const mode of travelModes) {
+        try {
+          const waypoints = selectedPath.points.slice(1, selectedPath.points.length - 1)
+            .map(p => ({ location: p, stopover: true }));
+
+          const result = await new Promise<google.maps.DirectionsResult>((resolve, reject) => {
+            directionsService.route(
+              {
+                origin: selectedPath.points[0],
+                destination: selectedPath.points[selectedPath.points.length - 1],
+                waypoints: waypoints,
+                travelMode: mode
+              },
+              (result, status) => {
+                if (status === google.maps.DirectionsStatus.OK && result) {
+                  resolve(result);
+                } else {
+                  reject(status);
+                }
+              }
+            );
+          });
+
+          routes.push({ mode, directions: result });
+        } catch (error) {
+          // Mode not available for this route
+          console.log(`${mode} not available for this route:`, error);
+        }
+      }
+
+      setRouteAlternatives(routes);
+      if (routes.length > 0) {
+        // Set default travel mode to walking if available, otherwise first available mode
+        const walkingRoute = routes.find(r => r.mode === google.maps.TravelMode.WALKING);
+        setSelectedTravelMode(walkingRoute ? walkingRoute.mode : routes[0].mode);
+      }
+      setShowNavigation(true);
+    };
+
+    fetchRoutes();
+  }, [selectedPathId, paths]);
 
   const addPath = (points: google.maps.LatLng[]) => {
     const newPath: PathData = {
@@ -192,6 +268,42 @@ function App() {
     return 'Select a tool to start drawing';
   };
 
+  const getTravelModeLabel = (mode: google.maps.TravelMode): string => {
+    switch (mode) {
+      case google.maps.TravelMode.WALKING:
+        return 'Walking';
+      case google.maps.TravelMode.TRANSIT:
+        return 'Transit';
+      case google.maps.TravelMode.BICYCLING:
+        return 'Cycling';
+      case google.maps.TravelMode.DRIVING:
+        return 'Driving';
+      default:
+        return mode;
+    }
+  };
+
+  const getTravelModeIcon = (mode: google.maps.TravelMode): string => {
+    switch (mode) {
+      case google.maps.TravelMode.WALKING:
+        return '🚶';
+      case google.maps.TravelMode.TRANSIT:
+        return '🚇';
+      case google.maps.TravelMode.BICYCLING:
+        return '🚴';
+      case google.maps.TravelMode.DRIVING:
+        return '🚗';
+      default:
+        return '📍';
+    }
+  };
+
+  const getSelectedDirections = (): google.maps.DirectionsResult | null => {
+    if (!selectedTravelMode) return null;
+    const route = routeAlternatives.find(r => r.mode === selectedTravelMode);
+    return route?.directions || null;
+  };
+
   return (
     <div>
       <Map
@@ -311,6 +423,111 @@ function App() {
           )}
         </div>
       </div>
+
+      {/* Navigation panel */}
+      {showNavigation && selectedPathId && (
+        <div
+          className="position-absolute top-0 start-0 m-3 bg-white rounded shadow"
+          style={{
+            zIndex: 1001,
+            width: '350px',
+            maxHeight: 'calc(100vh - 24px)',
+            overflowY: 'auto'
+          }}
+        >
+          <div className="p-3">
+            {/* Header with close button */}
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <h6 className="mb-0">Turn-by-Turn Directions</h6>
+              <button
+                className="btn btn-sm btn-light"
+                onClick={() => setShowNavigation(false)}
+                style={{ padding: '2px 8px' }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Travel mode selector */}
+            {routeAlternatives.length > 0 && (
+              <div className="mb-3">
+                <div className="d-flex gap-2 flex-wrap">
+                  {routeAlternatives.map((route) => (
+                    <button
+                      key={route.mode}
+                      className={`btn btn-sm ${
+                        selectedTravelMode === route.mode ? 'btn-primary' : 'btn-outline-secondary'
+                      }`}
+                      onClick={() => setSelectedTravelMode(route.mode)}
+                      style={{ fontSize: '12px' }}
+                    >
+                      {getTravelModeIcon(route.mode)} {getTravelModeLabel(route.mode)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Directions display */}
+            {(() => {
+              const directions = getSelectedDirections();
+              if (!directions || !directions.routes || directions.routes.length === 0) {
+                return <p className="text-muted">No directions available</p>;
+              }
+
+              const route = directions.routes[0];
+              const leg = route.legs[0];
+
+              return (
+                <>
+                  {/* Route summary */}
+                  <div className="mb-3 p-2 bg-light rounded">
+                    <div className="d-flex justify-content-between">
+                      <strong>Total Distance:</strong>
+                      <span>{leg.distance?.text}</span>
+                    </div>
+                    <div className="d-flex justify-content-between">
+                      <strong>Total Duration:</strong>
+                      <span>{leg.duration?.text}</span>
+                    </div>
+                  </div>
+
+                  {/* Turn-by-turn steps */}
+                  <div style={{ fontSize: '14px' }}>
+                    <strong className="d-block mb-2">Steps:</strong>
+                    {leg.steps.map((step, index) => (
+                      <div
+                        key={index}
+                        className="mb-3 pb-2"
+                        style={{ borderBottom: '1px solid #e0e0e0' }}
+                      >
+                        <div className="d-flex align-items-start mb-1">
+                          <div
+                            className="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2"
+                            style={{ minWidth: '24px', height: '24px', fontSize: '12px' }}
+                          >
+                            {index + 1}
+                          </div>
+                          <div
+                            dangerouslySetInnerHTML={{ __html: step.instructions }}
+                            style={{ flex: 1 }}
+                          />
+                        </div>
+                        <div className="text-muted" style={{ fontSize: '12px', marginLeft: '32px' }}>
+                          {step.distance?.text} • {step.duration?.text}
+                          {step.travel_mode !== google.maps.TravelMode.WALKING && (
+                            <span> • {getTravelModeIcon(step.travel_mode)} {getTravelModeLabel(step.travel_mode)}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
