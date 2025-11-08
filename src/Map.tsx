@@ -323,22 +323,24 @@ function MapComponent({
   ) : <></>
 }
 
-function Map({
-  paths = [],
-  selectedPathId = null,
-  onPathClick = () => {},
-  onMapClick,
-  placementMarkers = [],
-  previewShape = [],
-  tooltip,
-  center,
-  onSearchSelect,
-  drawingMode = false,
-  drawingPath = [],
-  onDrawStart,
-  onDrawMove,
-  onDrawEnd
-}: MapProps = {} as MapProps) {
+function Map(props: MapProps) {
+  const {
+    paths = [],
+    selectedPathId = null,
+    onPathClick,
+    onMapClick,
+    placementMarkers = [],
+    previewShape = [],
+    tooltip,
+    center,
+    onSearchSelect,
+    drawingMode = false,
+    drawingPath = [],
+    onDrawStart,
+    onDrawMove,
+    onDrawEnd
+  } = props || {};
+
   const [apiKey, setApiKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -356,7 +358,7 @@ function Map({
   return <MapComponent
     paths={paths}
     selectedPathId={selectedPathId}
-    onPathClick={onPathClick}
+    onPathClick={onPathClick || (() => {})}
     apiKey={apiKey}
     onMapClick={onMapClick}
     placementMarkers={placementMarkers}
