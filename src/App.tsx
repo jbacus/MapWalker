@@ -307,14 +307,19 @@ function App() {
   };
 
   const getPreviewShape = (): google.maps.LatLng[] => {
-    if (!placementState) return [];
+    if (!placementState || !window.google || !window.google.maps) return [];
 
-    if (placementState.shape === 'square' && placementState.points.length === 2) {
-      // Generate preview square from two points
-      return generateSquareFromTwoPoints(placementState.points[0], placementState.points[1]);
-    } else if (placementState.shape === 'circle' && placementState.points.length === 3) {
-      // Generate preview circle from three points
-      return generateCircleFromThreePoints(placementState.points[0], placementState.points[1], placementState.points[2]);
+    try {
+      if (placementState.shape === 'square' && placementState.points.length === 2) {
+        // Generate preview square from two points
+        return generateSquareFromTwoPoints(placementState.points[0], placementState.points[1]);
+      } else if (placementState.shape === 'circle' && placementState.points.length === 3) {
+        // Generate preview circle from three points
+        return generateCircleFromThreePoints(placementState.points[0], placementState.points[1], placementState.points[2]);
+      }
+    } catch (error) {
+      console.error('Error generating preview shape:', error);
+      return [];
     }
 
     return [];
