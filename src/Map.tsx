@@ -15,20 +15,15 @@ interface MapProps {
   path: google.maps.LatLng[];
 }
 
-function Map({ path }: MapProps) {
-  const [apiKey, setApiKey] = useState<string | null>(null);
+interface MapComponentProps {
+  path: google.maps.LatLng[];
+  apiKey: string;
+}
 
-  useEffect(() => {
-    const backendUrl = (window as any).ENV?.BACKEND_URL || '';
-    fetch(`${backendUrl}/api/get-api-key`)
-      .then(res => res.json())
-      .then(data => setApiKey(data.apiKey))
-      .catch(err => console.error('Failed to fetch API key:', err));
-  }, []);
-
+function MapComponent({ path, apiKey }: MapComponentProps) {
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
-    googleMapsApiKey: apiKey || '',
+    googleMapsApiKey: apiKey,
     preventGoogleFontsLoading: true,
   });
 
@@ -66,6 +61,24 @@ function Map({ path }: MapProps) {
         {directions && <DirectionsRenderer directions={directions} />}
       </GoogleMap>
   ) : <></>
+}
+
+function Map({ path }: MapProps) {
+  const [apiKey, setApiKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    const backendUrl = (window as any).ENV?.BACKEND_URL || '';
+    fetch(`${backendUrl}/api/get-api-key`)
+      .then(res => res.json())
+      .then(data => setApiKey(data.apiKey))
+      .catch(err => console.error('Failed to fetch API key:', err));
+  }, []);
+
+  if (!apiKey) {
+    return <div>Loading...</div>;
+  }
+
+  return <MapComponent path={path} apiKey={apiKey} />;
 }
 
 export default Map;
