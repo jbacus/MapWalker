@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import Map from './Map';
+import MapComponent from './Map';
 import { Button, ButtonGroup, Container } from 'react-bootstrap';
 import { generateCircleFromThreePoints, generateSquareFromTwoPoints, resamplePath } from './path-generator';
 import { PoetryPanel } from './PoetryPanel';
@@ -435,7 +435,7 @@ function App() {
 
   return (
     <div>
-      <Map
+      <MapComponent
         paths={paths}
         selectedPathId={selectedPathId}
         onPathClick={handleSelectPath}
