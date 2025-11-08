@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Map from './Map';
 import { Button, ButtonGroup, Container } from 'react-bootstrap';
 import { generateCircleFromThreePoints, generateSquareFromTwoPoints, resamplePath } from './path-generator';
+import { PoetryPanel } from './PoetryPanel';
 
 type PlacementState = {
   shape: 'circle' | 'square';
@@ -26,6 +27,14 @@ type RouteInfo = {
   directions: google.maps.DirectionsResult | null;
 };
 
+type PathPoetry = {
+  threeWords: string[];
+  poem: string | null;
+  poemTitle: string | null;
+  isGenerating: boolean;
+  error: string | null;
+};
+
 function App() {
   const [paths, setPaths] = useState<PathData[]>([]);
   const [selectedPathId, setSelectedPathId] = useState<string | null>(null);
@@ -36,6 +45,8 @@ function App() {
   const [routeAlternatives, setRouteAlternatives] = useState<RouteInfo[]>([]);
   const [selectedTravelMode, setSelectedTravelMode] = useState<google.maps.TravelMode | null>(null);
   const [showNavigation, setShowNavigation] = useState(false);
+  const [pathPoetry, setPathPoetry] = useState<Map<string, PathPoetry>>(new Map());
+  const [showPoetryPanel, setShowPoetryPanel] = useState(false);
 
   const generatePathId = () => `path-${Date.now()}-${Math.random()}`;
 
@@ -111,6 +122,54 @@ function App() {
 
     fetchRoutes();
   }, [selectedPathId, paths]);
+
+  // Fetch three-words when path is selected
+  useEffect(() => {
+    if (!selectedPathId) return;
+
+    const selectedPath = paths.find(p => p.id === selectedPathId);
+    if (!selectedPath || pathPoetry.has(selectedPathId)) return;
+
+    const fetchThreeWords = async () => {
+      try {
+        const backendUrl = (window as any).ENV?.BACKEND_URL || '';
+        const response = await fetch(`${backendUrl}/api/get-three-words`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            waypoints: selectedPath.points.map(p => ({
+              lat: p.lat(),
+              lng: p.lng()
+            }))
+          })
+        });
+
+        const data = await response.json();
+
+        setPathPoetry(prev => new Map(prev).set(selectedPathId, {
+          threeWords: data.threeWords || [],
+          poem: null,
+          poemTitle: null,
+          isGenerating: false,
+          error: null
+        }));
+
+        // Auto-open poetry panel when three-words are fetched
+        setShowPoetryPanel(true);
+      } catch (error) {
+        console.error('Error fetching three words:', error);
+        setPathPoetry(prev => new Map(prev).set(selectedPathId, {
+          threeWords: [],
+          poem: null,
+          poemTitle: null,
+          isGenerating: false,
+          error: 'Failed to fetch location markers'
+        }));
+      }
+    };
+
+    fetchThreeWords();
+  }, [selectedPathId, paths, pathPoetry]);
 
   const addPath = (points: google.maps.LatLng[], idealShape?: google.maps.LatLng[]) => {
     const newPath: PathData = {
@@ -323,6 +382,55 @@ function App() {
     }
 
     return [];
+  };
+
+  const handleGeneratePoem = async () => {
+    if (!selectedPathId) return;
+
+    const selectedPath = paths.find(p => p.id === selectedPathId);
+    const poetry = pathPoetry.get(selectedPathId);
+    if (!selectedPath || !poetry) return;
+
+    // Get route info
+    const selectedRoute = routeAlternatives.find(r => r.mode === selectedTravelMode);
+    const distance = selectedRoute?.directions?.routes[0]?.legs[0]?.distance?.text || 'Unknown';
+
+    // Set generating state
+    setPathPoetry(prev => new Map(prev).set(selectedPathId, {
+      ...poetry,
+      isGenerating: true,
+      error: null
+    }));
+
+    try {
+      const backendUrl = (window as any).ENV?.BACKEND_URL || '';
+      const response = await fetch(`${backendUrl}/api/generate-poem`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          threeWords: poetry.threeWords,
+          pathName: `Path ${paths.indexOf(selectedPath) + 1}`,
+          distance: distance,
+          travelMode: selectedTravelMode || 'WALKING'
+        })
+      });
+
+      const data = await response.json();
+
+      setPathPoetry(prev => new Map(prev).set(selectedPathId, {
+        ...poetry,
+        poem: data.poem,
+        poemTitle: data.title,
+        isGenerating: false
+      }));
+    } catch (error) {
+      console.error('Error generating poem:', error);
+      setPathPoetry(prev => new Map(prev).set(selectedPathId, {
+        ...poetry,
+        isGenerating: false,
+        error: 'Failed to generate poem'
+      }));
+    }
   };
 
   return (
@@ -550,6 +658,28 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Poetry panel */}
+      {showPoetryPanel && selectedPathId && pathPoetry.has(selectedPathId) && (() => {
+        const poetry = pathPoetry.get(selectedPathId)!;
+        const selectedPath = paths.find(p => p.id === selectedPathId);
+        const selectedRoute = routeAlternatives.find(r => r.mode === selectedTravelMode);
+        const distance = selectedRoute?.directions?.routes[0]?.legs[0]?.distance?.text || 'Unknown';
+        const pathIndex = selectedPath ? paths.indexOf(selectedPath) + 1 : 0;
+
+        return (
+          <PoetryPanel
+            pathName={`Path ${pathIndex}`}
+            distance={distance}
+            threeWords={poetry.threeWords}
+            poem={poetry.poem}
+            poemTitle={poetry.poemTitle}
+            isGenerating={poetry.isGenerating}
+            onGeneratePoem={handleGeneratePoem}
+            onClose={() => setShowPoetryPanel(false)}
+          />
+        );
+      })()}
     </div>
   );
 }

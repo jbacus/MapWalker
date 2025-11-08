@@ -11,13 +11,19 @@ steps:
       --project=$PROJECT_ID \
       --quiet
 
-# Grant the service account access to the secret (idempotent)
+# Grant the service account access to the secrets (idempotent)
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   entrypoint: bash
   args:
   - '-c'
   - |
     gcloud secrets add-iam-policy-binding MAPS_API \
+      --member=serviceAccount:map-art-backend-sa@$PROJECT_ID.iam.gserviceaccount.com \
+      --role=roles/secretmanager.secretAccessor \
+      --project=$PROJECT_ID \
+      --condition=None || true
+
+    gcloud secrets add-iam-policy-binding W3W_API_KEY \
       --member=serviceAccount:map-art-backend-sa@$PROJECT_ID.iam.gserviceaccount.com \
       --role=roles/secretmanager.secretAccessor \
       --project=$PROJECT_ID \

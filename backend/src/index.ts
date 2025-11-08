@@ -91,9 +91,7 @@ app.post('/api/get-three-words', async (req, res) => {
       return res.status(500).json({ error: 'W3W API key not configured' });
     }
 
-    const w3wClient = new What3wordsClient({
-      apiKey: w3wApiKey
-    });
+    const w3wClient = What3wordsClient(w3wApiKey);
 
     // Fetch three-word addresses for all waypoints
     const threeWords = await Promise.all(
