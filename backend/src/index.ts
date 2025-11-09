@@ -219,7 +219,7 @@ Style: Conversational yet lyrical, accessible yet evocative. Let the place names
 
     // Generate poem using Claude
     const poemResponse = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-latest',
+      model: 'claude-3-sonnet-20240229',
       max_tokens: 1024,
       messages: [{
         role: 'user',
@@ -234,7 +234,7 @@ Style: Conversational yet lyrical, accessible yet evocative. Let the place names
     // Generate title with separate prompt
     const titlePrompt = `Based on this poem about a walking route, suggest a short, evocative title (3-6 words):\n\n${poem}`;
     const titleResponse = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-latest',
+      model: 'claude-3-sonnet-20240229',
       max_tokens: 50,
       messages: [{
         role: 'user',
