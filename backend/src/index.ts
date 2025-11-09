@@ -1,6 +1,6 @@
 import express from 'express';
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
-import { VertexAI } from '@google-cloud/vertexai';
+import Anthropic from '@anthropic-ai/sdk';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -37,15 +37,14 @@ async function accessSecretVersion() {
   return payload;
 }
 
-// Initialize Vertex AI for Gemini
-const vertexAI = new VertexAI({
-  project: 'mapwalker-477518',
-  location: 'us-central1'
-});
+async function getClaudeApiKey() {
+  const [version] = await secretManagerClient.accessSecretVersion({
+    name: 'projects/mapwalker-477518/secrets/CLAUDE_API_KEY/versions/latest',
+  });
 
-const model = vertexAI.getGenerativeModel({
-  model: 'gemini-pro'
-});
+  const payload = version.payload?.data?.toString();
+  return payload || '';
+}
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -208,13 +207,44 @@ Write an 8-12 line poem that:
 
 Style: Conversational yet lyrical, accessible yet evocative. Let the place names inspire imagery and emotion.`;
 
-    const result = await model.generateContent(prompt);
-    const poem = result.response.candidates?.[0]?.content?.parts?.[0]?.text || 'Could not generate poem';
+    // Get Claude API key
+    const claudeApiKey = await getClaudeApiKey();
+    if (!claudeApiKey) {
+      return res.status(500).json({ error: 'Claude API key not configured' });
+    }
+
+    const anthropic = new Anthropic({
+      apiKey: claudeApiKey,
+    });
+
+    // Generate poem using Claude
+    const poemResponse = await anthropic.messages.create({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 1024,
+      messages: [{
+        role: 'user',
+        content: prompt
+      }]
+    });
+
+    const poem = poemResponse.content[0].type === 'text'
+      ? poemResponse.content[0].text
+      : 'Could not generate poem';
 
     // Generate title with separate prompt
     const titlePrompt = `Based on this poem about a walking route, suggest a short, evocative title (3-6 words):\n\n${poem}`;
-    const titleResult = await model.generateContent(titlePrompt);
-    const title = titleResult.response.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || 'A Journey';
+    const titleResponse = await anthropic.messages.create({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 50,
+      messages: [{
+        role: 'user',
+        content: titlePrompt
+      }]
+    });
+
+    const title = titleResponse.content[0].type === 'text'
+      ? titleResponse.content[0].text.trim()
+      : 'A Journey';
 
     res.json({
       poem: poem.trim(),

@@ -29,6 +29,12 @@ steps:
       --project=$PROJECT_ID \
       --condition=None || true
 
+    gcloud secrets add-iam-policy-binding CLAUDE_API_KEY \
+      --member=serviceAccount:map-art-backend-sa@$PROJECT_ID.iam.gserviceaccount.com \
+      --role=roles/secretmanager.secretAccessor \
+      --project=$PROJECT_ID \
+      --condition=None || true
+
 # Build and push the backend image
 - name: 'gcr.io/cloud-builders/docker'
   args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/backend:$BUILD_ID', './backend']
@@ -37,7 +43,7 @@ steps:
 
 # Build and push the frontend image
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/frontend:$BUILD_ID', '.']
+  args: ['build', '--no-cache', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/frontend:$BUILD_ID', '.']
 - name: 'gcr.io/cloud-builders/docker'
   args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/map-art-app/frontend:$BUILD_ID']
 
