@@ -1,7 +1,6 @@
 import express from 'express';
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 import { VertexAI } from '@google-cloud/vertexai';
-import what3words from '@what3words/api';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -38,15 +37,6 @@ async function accessSecretVersion() {
   return payload;
 }
 
-async function getW3WApiKey() {
-  const [version] = await secretManagerClient.accessSecretVersion({
-    name: 'projects/mapwalker-477518/secrets/W3W_API_KEY/versions/latest',
-  });
-
-  const payload = version.payload?.data?.toString();
-  return payload || '';
-}
-
 // Initialize Vertex AI for Gemini
 const vertexAI = new VertexAI({
   project: 'mapwalker-477518',
@@ -76,7 +66,45 @@ app.get('/api/get-api-key', async (req, res) => {
   }
 });
 
-// What3Words endpoint
+// Helper function to extract poetic words from geocoding results
+function extractPoeticWords(geocodeResult: any): string[] {
+  const words: string[] = [];
+
+  if (!geocodeResult || !geocodeResult.address_components) {
+    return words;
+  }
+
+  // Extract from address components
+  for (const component of geocodeResult.address_components) {
+    const types = component.types;
+    const name = component.long_name;
+
+    // Skip numbers and generic terms
+    if (/^\d+$/.test(name)) continue;
+    if (['USA', 'United States', 'US'].includes(name)) continue;
+
+    // Prioritize poetic location types
+    if (types.includes('neighborhood') ||
+        types.includes('sublocality') ||
+        types.includes('natural_feature') ||
+        types.includes('park') ||
+        types.includes('point_of_interest')) {
+      words.push(name);
+    } else if (types.includes('route')) {
+      // Extract interesting words from street names
+      const streetWords = name.split(/\s+/)
+        .filter(w => !['Street', 'Avenue', 'Road', 'Boulevard', 'Drive', 'Lane', 'Way', 'Court', 'Place'].includes(w))
+        .filter(w => w.length > 2);
+      words.push(...streetWords);
+    } else if (types.includes('locality')) {
+      words.push(name);
+    }
+  }
+
+  return words;
+}
+
+// Location words endpoint (replaces What3Words)
 app.post('/api/get-three-words', async (req, res) => {
   try {
     const { waypoints } = req.body;
@@ -85,55 +113,72 @@ app.post('/api/get-three-words', async (req, res) => {
       return res.status(400).json({ error: 'Invalid waypoints' });
     }
 
-    // Get W3W API key
-    const w3wApiKey = await getW3WApiKey();
-    if (!w3wApiKey) {
-      return res.status(500).json({ error: 'W3W API key not configured' });
+    // Get Google Maps API key
+    const mapsApiKey = await accessSecretVersion();
+    if (!mapsApiKey) {
+      return res.status(500).json({ error: 'Maps API key not configured' });
     }
 
-    const w3wService = what3words(w3wApiKey);
-
-    // Sample waypoints to avoid rate limits - take start, end, and evenly distributed points
+    // Sample waypoints - take start, end, and evenly distributed points
     const maxWaypoints = 7;
     let sampledWaypoints = waypoints;
 
     if (waypoints.length > maxWaypoints) {
       sampledWaypoints = [];
-      // Always include first waypoint
-      sampledWaypoints.push(waypoints[0]);
+      sampledWaypoints.push(waypoints[0]); // Start
 
-      // Add evenly distributed middle points
       const step = (waypoints.length - 1) / (maxWaypoints - 1);
       for (let i = 1; i < maxWaypoints - 1; i++) {
         const index = Math.round(i * step);
         sampledWaypoints.push(waypoints[index]);
       }
 
-      // Always include last waypoint
-      sampledWaypoints.push(waypoints[waypoints.length - 1]);
+      sampledWaypoints.push(waypoints[waypoints.length - 1]); // End
     }
 
     console.log(`Sampling ${sampledWaypoints.length} waypoints from ${waypoints.length} total`);
 
-    // Fetch three-word addresses for sampled waypoints
-    const threeWords = await Promise.all(
-      sampledWaypoints.map(async (point: { lat: number; lng: number }) => {
+    // Fetch location words using reverse geocoding
+    const locationPhrases = await Promise.all(
+      sampledWaypoints.map(async (point: { lat: number; lng: number }, index: number) => {
         try {
-          const result = await w3wService.convertTo3wa({
-            coordinates: { lat: point.lat, lng: point.lng }
-          });
-          return result.words;
+          const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${point.lat},${point.lng}&key=${mapsApiKey}`;
+          const response = await fetch(url);
+          const data = await response.json();
+
+          if (data.status !== 'OK' || !data.results || data.results.length === 0) {
+            console.error('Geocoding failed:', data.status);
+            return 'journey.continues';
+          }
+
+          // Extract poetic words from the first result
+          const words = extractPoeticWords(data.results[0]);
+
+          // If we got words, combine 2-3 of them
+          if (words.length >= 2) {
+            // Take first 2-3 unique words
+            const uniqueWords = [...new Set(words)].slice(0, 3);
+            return uniqueWords.join('.').toLowerCase().replace(/\s+/g, '.');
+          } else if (words.length === 1) {
+            return words[0].toLowerCase().replace(/\s+/g, '.');
+          }
+
+          // Fallback: use a positional descriptor
+          if (index === 0) return 'journey.begins';
+          if (index === sampledWaypoints.length - 1) return 'journey.ends';
+          return 'path.continues';
+
         } catch (error) {
-          console.error('Error converting waypoint to 3wa:', error);
-          return 'error.error.error';
+          console.error('Error reverse geocoding waypoint:', error);
+          return 'waypoint.marker';
         }
       })
     );
 
-    res.json({ threeWords });
+    res.json({ threeWords: locationPhrases });
   } catch (error) {
-    console.error('Error fetching three words:', error);
-    res.status(500).json({ error: 'Failed to fetch three words' });
+    console.error('Error fetching location words:', error);
+    res.status(500).json({ error: 'Failed to fetch location words' });
   }
 });
 
@@ -146,20 +191,22 @@ app.post('/api/generate-poem', async (req, res) => {
       return res.status(400).json({ error: 'Invalid threeWords' });
     }
 
-    const prompt = `Create a poetic journey using these What Three Words addresses from a ${travelMode?.toLowerCase() || 'walking'} route:
+    const prompt = `Create a poetic journey inspired by these location phrases from a ${travelMode?.toLowerCase() || 'walking'} route:
 
 Route: ${pathName || 'Unnamed Route'}
 Distance: ${distance || 'Unknown distance'}
-Three Word Addresses: ${threeWords.join(', ')}
+Location Markers: ${threeWords.join(', ')}
+
+These phrases are derived from real place names, neighborhoods, and landmarks along the route.
 
 Write an 8-12 line poem that:
-- Incorporates all or most of the three-word combinations naturally
+- Weaves the location words and themes naturally into the narrative
 - Tells a story of the journey from start to finish
 - Captures the mood and experience of exploring these places
 - Has a consistent rhythm and flow
-- Uses vivid, sensory language
+- Uses vivid, sensory language that evokes the sense of place
 
-Style: Conversational yet lyrical, accessible yet evocative.`;
+Style: Conversational yet lyrical, accessible yet evocative. Let the place names inspire imagery and emotion.`;
 
     const result = await model.generateContent(prompt);
     const poem = result.response.candidates?.[0]?.content?.parts?.[0]?.text || 'Could not generate poem';
