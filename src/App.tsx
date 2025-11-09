@@ -622,7 +622,19 @@ function App() {
               }
 
               const route = directions.routes[0];
-              const leg = route.legs[0];
+              const legs = route.legs;
+
+              // Calculate total distance and duration from all legs
+              const totalDistance = calculateTotalDistance(directions);
+              const totalDurationSeconds = legs.reduce((sum, leg) => sum + (leg.duration?.value || 0), 0);
+              const totalDurationText = totalDurationSeconds > 0
+                ? totalDurationSeconds >= 3600
+                  ? `${Math.floor(totalDurationSeconds / 3600)} hr ${Math.floor((totalDurationSeconds % 3600) / 60)} min`
+                  : `${Math.floor(totalDurationSeconds / 60)} min`
+                : 'Unknown';
+
+              // Collect all steps from all legs
+              const allSteps = legs.flatMap(leg => leg.steps);
 
               return (
                 <>
@@ -630,18 +642,18 @@ function App() {
                   <div className="mb-3 p-2 bg-light rounded">
                     <div className="d-flex justify-content-between">
                       <strong>Total Distance:</strong>
-                      <span>{leg.distance?.text}</span>
+                      <span>{totalDistance}</span>
                     </div>
                     <div className="d-flex justify-content-between">
                       <strong>Total Duration:</strong>
-                      <span>{leg.duration?.text}</span>
+                      <span>{totalDurationText}</span>
                     </div>
                   </div>
 
                   {/* Turn-by-turn steps */}
                   <div style={{ fontSize: '14px' }}>
                     <strong className="d-block mb-2">Steps:</strong>
-                    {leg.steps.map((step, index) => (
+                    {allSteps.map((step, index) => (
                       <div
                         key={index}
                         className="mb-3 pb-2"
