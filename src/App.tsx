@@ -55,6 +55,22 @@ function App() {
     return colors[index % colors.length];
   };
 
+  const calculateTotalDistance = (directions: google.maps.DirectionsResult | null | undefined): string => {
+    if (!directions?.routes[0]?.legs) return 'Unknown';
+
+    const legs = directions.routes[0].legs;
+    const totalMeters = legs.reduce((sum, leg) => sum + (leg.distance?.value || 0), 0);
+
+    if (totalMeters === 0) return 'Unknown';
+
+    const miles = totalMeters * 0.000621371;
+
+    // Show in miles if >= 0.1 mi, otherwise in feet
+    return miles >= 0.1
+      ? `${miles.toFixed(1)} mi`
+      : `${(totalMeters * 3.28084).toFixed(0)} ft`;
+  };
+
   // Fetch alternative routes when a path is selected
   useEffect(() => {
     if (!selectedPathId || !window.google) {
@@ -391,9 +407,9 @@ function App() {
     const poetry = pathPoetry.get(selectedPathId);
     if (!selectedPath || !poetry) return;
 
-    // Get route info
+    // Get route info and calculate total distance
     const selectedRoute = routeAlternatives.find(r => r.mode === selectedTravelMode);
-    const distance = selectedRoute?.directions?.routes[0]?.legs[0]?.distance?.text || 'Unknown';
+    const distance = calculateTotalDistance(selectedRoute?.directions);
 
     // Set generating state
     setPathPoetry(prev => new Map(prev).set(selectedPathId, {
@@ -664,7 +680,7 @@ function App() {
         const poetry = pathPoetry.get(selectedPathId)!;
         const selectedPath = paths.find(p => p.id === selectedPathId);
         const selectedRoute = routeAlternatives.find(r => r.mode === selectedTravelMode);
-        const distance = selectedRoute?.directions?.routes[0]?.legs[0]?.distance?.text || 'Unknown';
+        const distance = calculateTotalDistance(selectedRoute?.directions);
         const pathIndex = selectedPath ? paths.indexOf(selectedPath) + 1 : 0;
 
         return (
