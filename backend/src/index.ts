@@ -93,9 +93,31 @@ app.post('/api/get-three-words', async (req, res) => {
 
     const w3wService = what3words(w3wApiKey);
 
-    // Fetch three-word addresses for all waypoints
+    // Sample waypoints to avoid rate limits - take start, end, and evenly distributed points
+    const maxWaypoints = 7;
+    let sampledWaypoints = waypoints;
+
+    if (waypoints.length > maxWaypoints) {
+      sampledWaypoints = [];
+      // Always include first waypoint
+      sampledWaypoints.push(waypoints[0]);
+
+      // Add evenly distributed middle points
+      const step = (waypoints.length - 1) / (maxWaypoints - 1);
+      for (let i = 1; i < maxWaypoints - 1; i++) {
+        const index = Math.round(i * step);
+        sampledWaypoints.push(waypoints[index]);
+      }
+
+      // Always include last waypoint
+      sampledWaypoints.push(waypoints[waypoints.length - 1]);
+    }
+
+    console.log(`Sampling ${sampledWaypoints.length} waypoints from ${waypoints.length} total`);
+
+    // Fetch three-word addresses for sampled waypoints
     const threeWords = await Promise.all(
-      waypoints.map(async (point: { lat: number; lng: number }) => {
+      sampledWaypoints.map(async (point: { lat: number; lng: number }) => {
         try {
           const result = await w3wService.convertTo3wa({
             coordinates: { lat: point.lat, lng: point.lng }
