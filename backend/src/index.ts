@@ -1,7 +1,7 @@
 import express from 'express';
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 import { VertexAI } from '@google-cloud/vertexai';
-import What3wordsClient from '@what3words/api';
+import what3words from '@what3words/api';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -91,13 +91,13 @@ app.post('/api/get-three-words', async (req, res) => {
       return res.status(500).json({ error: 'W3W API key not configured' });
     }
 
-    const w3wClient = What3wordsClient(w3wApiKey);
+    const w3wService = what3words(w3wApiKey);
 
     // Fetch three-word addresses for all waypoints
     const threeWords = await Promise.all(
       waypoints.map(async (point: { lat: number; lng: number }) => {
         try {
-          const result = await w3wClient.convertTo3wa({
+          const result = await w3wService.convertTo3wa({
             coordinates: { lat: point.lat, lng: point.lng }
           });
           return result.words;
