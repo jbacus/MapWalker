@@ -93,8 +93,8 @@ function extractPoeticWords(geocodeResult: any): string[] {
     } else if (types.includes('route')) {
       // Extract interesting words from street names
       const streetWords = name.split(/\s+/)
-        .filter(w => !['Street', 'Avenue', 'Road', 'Boulevard', 'Drive', 'Lane', 'Way', 'Court', 'Place'].includes(w))
-        .filter(w => w.length > 2);
+        .filter((w: string) => !['Street', 'Avenue', 'Road', 'Boulevard', 'Drive', 'Lane', 'Way', 'Court', 'Place'].includes(w))
+        .filter((w: string) => w.length > 2);
       words.push(...streetWords);
     } else if (types.includes('locality')) {
       words.push(name);
