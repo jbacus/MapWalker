@@ -32,8 +32,8 @@ export function PoetryPanel({
     <div
       className="position-absolute bg-white rounded shadow"
       style={{
-        top: '20px',
-        left: '20px',
+        bottom: '20px',
+        right: '20px',
         width: '400px',
         maxHeight: 'calc(100vh - 40px)',
         overflowY: 'auto',
