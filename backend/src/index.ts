@@ -44,7 +44,7 @@ const vertexAI = new VertexAI({
 });
 
 const model = vertexAI.getGenerativeModel({
-  model: 'gemini-1.5-flash-002'
+  model: 'gemini-pro'
 });
 
 // Health check endpoint
