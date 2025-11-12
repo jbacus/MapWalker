@@ -7,8 +7,10 @@ interface PoetryPanelProps {
   poem: string | null;
   poemTitle: string | null;
   isGenerating: boolean;
+  minimized: boolean;
   onGeneratePoem: () => void;
   onClose: () => void;
+  onToggleMinimize: () => void;
 }
 
 export function PoetryPanel({
@@ -18,8 +20,10 @@ export function PoetryPanel({
   poem,
   poemTitle,
   isGenerating,
+  minimized,
   onGeneratePoem,
-  onClose
+  onClose,
+  onToggleMinimize
 }: PoetryPanelProps) {
   const handleCopyPoem = () => {
     if (poem) {
@@ -34,8 +38,8 @@ export function PoetryPanel({
       style={{
         bottom: '20px',
         right: '20px',
-        width: '400px',
-        maxHeight: 'calc(100vh - 40px)',
+        width: minimized ? 'auto' : '400px',
+        maxHeight: minimized ? 'auto' : 'calc(100vh - 40px)',
         overflowY: 'auto',
         zIndex: 1002
       }}
@@ -44,14 +48,27 @@ export function PoetryPanel({
         {/* Header */}
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h6 className="mb-0">🎭 Route Poetry</h6>
-          <button
-            className="btn btn-sm btn-light"
-            onClick={onClose}
-            style={{ padding: '2px 8px' }}
-          >
-            ×
-          </button>
+          <div className="d-flex gap-1">
+            <button
+              className="btn btn-sm btn-light"
+              onClick={onToggleMinimize}
+              style={{ padding: '2px 8px' }}
+              title={minimized ? "Expand" : "Minimize"}
+            >
+              {minimized ? '□' : '_'}
+            </button>
+            <button
+              className="btn btn-sm btn-light"
+              onClick={onClose}
+              style={{ padding: '2px 8px' }}
+            >
+              ×
+            </button>
+          </div>
         </div>
+
+        {!minimized && (
+          <>
 
         {/* Route Info */}
         <div className="mb-3">
@@ -150,6 +167,8 @@ export function PoetryPanel({
             </button>
           )}
         </div>
+        </>
+        )}
       </div>
     </div>
   );
